@@ -1,82 +1,58 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { User, Link as LinkIcon, Twitter, Instagram } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { useProfile } from '../hooks/useProfile';
-import { UserType } from '../types/user';
-import ArtistDashboard from '../components/Profile/ArtistDashboard';
-import ContentCreatorDashboard from '../components/Profile/ContentCreatorDashboard';
-import InvestorDashboard from '../components/Profile/InvestorDashboard';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { User } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { useProfile } from "../hooks/useProfile";
+import { UserType } from "../types/user";
+import ArtistDashboard from "../components/Profile/Dashboards/Artist/ArtistDashboard";
+import ContentCreatorDashboard from "../components/Profile/ContentCreatorDashboard";
+import InvestorDashboard from "../components/Profile/InvestorDashboard";
 
 export default function ProfilePage() {
   const { user } = useAuth();
   const { profile, updateProfile } = useProfile();
   const navigate = useNavigate();
-  
+
   const [formData, setFormData] = useState({
-    userType: '' as UserType | '',
-    bio: '',
-    website: '',
-    twitter: '',
-    instagram: ''
+    userType: "" as UserType | "",
   });
-  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!user) {
-      navigate('/auth');
+      navigate("/auth");
     }
   }, [user, navigate]);
 
   useEffect(() => {
     if (profile) {
       setFormData({
-        userType: profile.userType || '',
-        bio: profile.bio || '',
-        website: profile.website || '',
-        twitter: profile.twitter || '',
-        instagram: profile.instagram || ''
+        userType: profile.userType || "",
       });
     }
   }, [profile]);
 
   const userTypes: { value: UserType; label: string }[] = [
-    { value: 'artist', label: 'Artist' },
-    { value: 'collector', label: 'Collector' },
-    { value: 'fan', label: 'Fan' },
-    { value: 'content-creator', label: 'Content Creator' },
-    { value: 'investor', label: 'Investor' }
+    { value: "artist", label: "Artist" },
+    { value: "content-creator", label: "Content Creator" },
+    { value: "investor", label: "Investor" },
   ];
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
-
-    try {
-      const success = await updateProfile({
-        userType: formData.userType as UserType,
-        bio: formData.bio,
-        website: formData.website,
-        twitter: formData.twitter,
-        instagram: formData.instagram
-      });
-
-      if (success) {
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-    } finally {
-      setIsSaving(false);
-    }
+    updateProfile({
+      userType: formData.userType as UserType,
+    }).catch((error) => {
+      console.error("Error updating profile:", error);
+    });
   };
 
   const renderDashboard = () => {
     switch (formData.userType) {
-      case 'artist':
+      case "artist":
         return <ArtistDashboard />;
-      case 'content-creator':
+      case "content-creator":
         return <ContentCreatorDashboard />;
-      case 'investor':
+      case "investor":
         return <InvestorDashboard />;
       default:
         return null;
@@ -101,9 +77,7 @@ export default function ProfilePage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email */}
             <div>
-              <label className="block text-sm text-primary/60">
-                Email
-              </label>
+              <label className="block text-sm text-primary/60">Email</label>
               <p className="mt-1 text-primary">{user.email}</p>
             </div>
 
@@ -113,15 +87,16 @@ export default function ProfilePage() {
                 I am a...
               </label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {userTypes.map(type => (
+                {userTypes.map((type) => (
                   <label
                     key={type.value}
                     className={`
                       flex items-center justify-center px-4 py-3 border rounded-lg cursor-pointer
                       transition-colors text-sm
-                      ${formData.userType === type.value
-                        ? 'bg-accent/20 text-white border-accent shadow-lg font-medium'
-                        : 'border-accent/20 text-primary hover:text-accent'
+                      ${
+                        formData.userType === type.value
+                          ? "bg-accent/20 text-white border-accent shadow-lg font-medium"
+                          : "border-accent/20 text-primary hover:text-accent"
                       }
                     `}
                   >
@@ -130,74 +105,17 @@ export default function ProfilePage() {
                       name="userType"
                       value={type.value}
                       checked={formData.userType === type.value}
-                      onChange={(e) => setFormData({ ...formData, userType: e.target.value as UserType })}
-                      className="sr-only"                      
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          userType: e.target.value as UserType,
+                        })
+                      }
+                      className="sr-only"
                     />
                     <span>{type.label}</span>
                   </label>
                 ))}
-              </div>
-            </div>
-
-            {/* Bio */}
-            <div>
-              <label className="block text-sm text-primary/60 mb-2">
-                Bio
-              </label>
-              <textarea
-                rows={4}
-                value={formData.bio}
-                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                className="w-full px-3 py-2 bg-surface border border-accent/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-primary text-sm placeholder-primary/50 disabled:opacity-50"
-                placeholder="Tell us about yourself..."                
-              />
-            </div>
-
-            {/* Social Links */}
-            <div className="space-y-4">
-              <h3 className="text-sm text-primary/60">Social Links</h3>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <LinkIcon className="w-5 h-5 text-primary/60" />
-                  <input
-                    type="url"
-                    value={formData.website}
-                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                    placeholder="Your website"
-                    className="flex-1 px-3 py-2 bg-surface border border-accent/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-primary text-sm placeholder-primary/50"                    
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Twitter className="w-5 h-5 text-primary/60" />
-                  <input
-                    type="text"
-                    value={formData.twitter}
-                    onChange={(e) => setFormData({ ...formData, twitter: e.target.value })}
-                    placeholder="Twitter username"
-                    className="flex-1 px-3 py-2 bg-surface border border-accent/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-primary text-sm placeholder-primary/50" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Instagram className="w-5 h-5 text-primary/60" />
-                  <input
-                    type="text"
-                    value={formData.instagram}
-                    onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
-                    placeholder="Instagram username"
-                    className="flex-1 px-3 py-2 bg-surface border border-accent/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-primary text-sm placeholder-primary/50" />
-                </div>
-              </div>
-            </div>
-
-            {/* Save Button */}
-            <div className="flex justify-end">
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="px-4 py-2 bg-surface border border-accent/20 text-primary hover:text-accent rounded-lg transition-colors disabled:opacity-50 text-sm"
-                >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
-                </button>
               </div>
             </div>
           </form>

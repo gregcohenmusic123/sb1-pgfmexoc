@@ -27,3 +27,13 @@ export interface Artist {
     followers: number;
   };
 }
+
+export interface ArtistProfileData {
+  name: string;
+  bio?: string;
+  profileImage?: File | null;
+  backgroundImage?: File | null;
+  website?: string;
+  instagram?: string;
+  twitter?: string;
+}
