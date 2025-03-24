@@ -95,33 +95,86 @@ export function useNewTracks() {
       let artistNames = {};
 
       if (artistIds.length > 0) {
+        console.log("Fetching artist names for IDs:", artistIds);
+
+        // First try to fetch from artist_profiles
         const { data: artistData, error: artistError } = await supabase
           .from("artist_profiles")
           .select("id, name")
           .in("id", artistIds);
 
-        if (!artistError && artistData) {
+        console.log("Artist data result from artist_profiles:", {
+          artistData,
+          artistError,
+        });
+
+        if (!artistError && artistData && artistData.length > 0) {
           artistNames = artistData.reduce((acc, artist) => {
             acc[artist.id] = artist.name;
             return acc;
           }, {});
+        } else {
+          // If no results from artist_profiles, try the public.artist_profiles table
+          console.log(
+            "No results from artist_profiles, trying public.artist_profiles",
+          );
+          const { data: publicArtistData, error: publicArtistError } =
+            await supabase
+              .from("public.artist_profiles")
+              .select("id, name")
+              .in("id", artistIds);
+
+          console.log("Artist data result from public.artist_profiles:", {
+            publicArtistData,
+            publicArtistError,
+          });
+
+          if (
+            !publicArtistError &&
+            publicArtistData &&
+            publicArtistData.length > 0
+          ) {
+            artistNames = publicArtistData.reduce((acc, artist) => {
+              acc[artist.id] = artist.name;
+              return acc;
+            }, {});
+          }
         }
       }
 
       // Transform the data to match our Track type
-      const formattedTracks: Track[] = data.map((track) => ({
-        id: track.id,
-        title: track.title || "Untitled Track",
-        artist: track.artist_id
-          ? artistNames[track.artist_id] || "Unknown Artist"
-          : "Unknown Artist",
-        inscription: "", // Default value as this might not be in the DB
-        price: track.price || 0,
-        coverArt: track.cover_art_url || "",
-        audioUrl: track.audio_url || "",
-        plays: 0, // Default value since plays column doesn't exist
-        duration: 0, // Default value since duration column doesn't exist
-      }));
+      const formattedTracks: Track[] = data.map((track) => {
+        // Check if we have an artist_id and if it's in our artistNames map
+        const artistName =
+          track.artist_id && artistNames[track.artist_id]
+            ? artistNames[track.artist_id]
+            : "Unknown Artist";
+
+        console.log(
+          `Track ${track.id} artist_id: ${track.artist_id}, mapped artist name: ${artistName}`,
+        );
+
+        // If we still have Unknown Artist, log more details to help debug
+        if (artistName === "Unknown Artist" && track.artist_id) {
+          console.warn(
+            `Failed to map artist name for track ${track.id} with artist_id ${track.artist_id}`,
+            "Available artist IDs in map:",
+            Object.keys(artistNames),
+          );
+        }
+
+        return {
+          id: track.id,
+          title: track.title || "Untitled Track",
+          artist: artistName,
+          inscription: "", // Default value as this might not be in the DB
+          price: track.price || 0,
+          coverArt: track.cover_art_url || "",
+          audioUrl: track.audio_url || "",
+          plays: 0, // Default value since plays column doesn't exist
+          duration: 0, // Default value since duration column doesn't exist
+        };
+      });
 
       console.log("Formatted tracks:", formattedTracks);
       setNewTracks(formattedTracks);
@@ -170,14 +223,50 @@ export function useNewTracks() {
       // Get artist name if we have an artist_id
       let artistName = "Unknown Artist";
       if (data.artist_id) {
+        console.log(`Fetching artist name for ID: ${data.artist_id}`);
+
+        // First try artist_profiles table
         const { data: artistData, error: artistError } = await supabase
           .from("artist_profiles")
           .select("name")
           .eq("id", data.artist_id)
           .single();
 
+        console.log("Artist data result from artist_profiles:", {
+          artistData,
+          artistError,
+        });
+
         if (!artistError && artistData) {
           artistName = artistData.name;
+          console.log(`Found artist name: ${artistName}`);
+        } else {
+          // If not found, try public.artist_profiles table
+          console.log(
+            `Trying public.artist_profiles for ID: ${data.artist_id}`,
+          );
+          const { data: publicArtistData, error: publicArtistError } =
+            await supabase
+              .from("public.artist_profiles")
+              .select("name")
+              .eq("id", data.artist_id)
+              .single();
+
+          console.log("Artist data result from public.artist_profiles:", {
+            publicArtistData,
+            publicArtistError,
+          });
+
+          if (!publicArtistError && publicArtistData) {
+            artistName = publicArtistData.name;
+            console.log(
+              `Found artist name in public.artist_profiles: ${artistName}`,
+            );
+          } else {
+            console.warn(
+              `Could not find artist with ID: ${data.artist_id} in either table`,
+            );
+          }
         }
       }
 
