@@ -34,9 +34,9 @@ export default function HomePage() {
       transition={{ duration: 0.5 }}
     >
       <section>
-        <h2 className="text-3xl text-primary font-bold">Latest Releases</h2>
+        <h2 className="text-3xl text-primary font-bold">Featured Releases</h2>
         <div className="mt-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-3 gap-4 md:gap-6">
             {latestReleases.map((track) => (
               <TrackCard
                 key={track.id}
@@ -49,14 +49,13 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
       <section>
         <div className="flex justify-between items-center">
           <h2 className="text-3xl text-primary font-bold">New Uploads</h2>
         </div>
         <div className="mt-6">
           {newTracks.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
+            <div className="grid grid-cols-3 gap-4 md:gap-6">
               {newTracks.map((track) => (
                 <TrackCard
                   key={track.id}
@@ -97,7 +96,6 @@ export default function HomePage() {
           )}
         </div>
       </section>
-
       {loading && (
         <div className="flex justify-center py-8">
           <div className="flex items-center gap-2">
@@ -125,7 +123,6 @@ export default function HomePage() {
           </div>
         </div>
       )}
-
       {error && (
         <div className="flex justify-center py-4 px-6 bg-red-900/20 rounded-lg border border-red-500/30 my-4">
           <div className="text-red-500 flex items-center gap-2">
@@ -154,7 +151,6 @@ export default function HomePage() {
           </div>
         </div>
       )}
-
       <TrendingSection tracks={tracks} />
     </motion.div>
   );
