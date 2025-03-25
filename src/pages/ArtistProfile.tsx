@@ -12,6 +12,7 @@ export default function ArtistProfile() {
   const { id } = useParams();
   const [loading, setLoading] = useState(true);
   const [dbArtist, setDbArtist] = useState<any>(null);
+  const [dbTracks, setDbTracks] = useState<Track[]>([]);
 
   // First try to find artist by ID in static data
   let artist = artists.find((a) => a.id === id);
@@ -51,6 +52,89 @@ export default function ArtistProfile() {
           console.error("Error fetching artist profile:", error);
         } else if (data) {
           setDbArtist(data);
+
+          // Fetch artist tracks from database
+          // Try both user_id and id fields to ensure we catch all tracks
+          const { data: trackData, error: trackError } = await supabase
+            .from("artist_tracks")
+            .select("*")
+            .or(`artist_id.eq.${data.id},artist_id.eq.${data.user_id}`);
+
+          if (trackError) {
+            console.error("Error fetching artist tracks:", trackError);
+
+            // Try a direct query to the storage bucket as fallback
+            try {
+              console.log(
+                `Attempting to fetch tracks from storage for artist ${data.name}`,
+              );
+              const { data: storageData, error: storageError } =
+                await supabase.storage
+                  .from("audio")
+                  .list(`tracks/${data.user_id}`, {
+                    limit: 100,
+                    offset: 0,
+                  });
+
+              if (!storageError && storageData && storageData.length > 0) {
+                console.log(
+                  `Found ${storageData.length} tracks in storage for ${data.name}:`,
+                  storageData,
+                );
+
+                // Create track objects from storage files
+                const storageFormattedTracks: Track[] = storageData.map(
+                  (file, index) => ({
+                    id: `storage-${data.user_id}-${index}`,
+                    title:
+                      file.name
+                        .split("-")
+                        .slice(1)
+                        .join("-")
+                        .replace(/\.[^/.]+$/, "") || "Untitled Track",
+                    artist: data.name,
+                    inscription: "",
+                    price: 0.05, // Default price
+                    coverArt:
+                      "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80",
+                    audioUrl: supabase.storage
+                      .from("audio")
+                      .getPublicUrl(`tracks/${data.user_id}/${file.name}`).data
+                      .publicUrl,
+                    plays: 0,
+                    duration: 180,
+                  }),
+                );
+
+                setDbTracks(storageFormattedTracks);
+              }
+            } catch (storageErr) {
+              console.error("Error fetching from storage:", storageErr);
+            }
+          } else {
+            // Transform database tracks to match Track interface, even if empty
+            const formattedTracks: Track[] = trackData
+              ? trackData.map((track) => ({
+                  id: track.id,
+                  title: track.title,
+                  artist: data.name,
+                  inscription: track.inscription_id || "",
+                  price: track.price || 0,
+                  coverArt:
+                    track.cover_art_url ||
+                    "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80",
+                  audioUrl: track.audio_url || "",
+                  plays: track.play_count || 0,
+                  duration: track.duration || 180,
+                }))
+              : [];
+
+            console.log(
+              `Found ${formattedTracks.length} tracks in database for ${data.name}:`,
+              formattedTracks,
+            );
+            setDbTracks(formattedTracks);
+          }
         }
       } catch (err) {
         console.error("Error in artist profile fetch:", err);
@@ -104,10 +188,23 @@ export default function ArtistProfile() {
     };
   }
 
-  // Get tracks for this artist
-  const artistTracks = tracks.filter(
-    (track) => track.artist === artist?.name || track.artist === id,
+  // Get tracks for this artist - combine database tracks with static tracks
+  const staticTracks = tracks.filter(
+    (track) =>
+      track.artist === artist?.name ||
+      track.artist === id ||
+      (dbArtist &&
+        (track.artist === dbArtist.name || track.artist === dbArtist.user_id)),
   );
+
+  // Combine database tracks with static tracks, avoiding duplicates
+  const artistTracks = [
+    ...dbTracks,
+    ...staticTracks.filter(
+      (staticTrack) =>
+        !dbTracks.some((dbTrack) => dbTrack.id === staticTrack.id),
+    ),
+  ];
 
   if (!artist) {
     return (
