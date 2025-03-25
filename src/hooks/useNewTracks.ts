@@ -97,11 +97,11 @@ export function useNewTracks() {
       if (artistIds.length > 0) {
         console.log("Fetching artist names for IDs:", artistIds);
 
-        // First try to fetch from artist_profiles
+        // First try artist_profiles table directly - this is where artist names are stored
         const { data: artistData, error: artistError } = await supabase
           .from("artist_profiles")
-          .select("id, name")
-          .in("id", artistIds);
+          .select("user_id, name")
+          .in("user_id", artistIds);
 
         console.log("Artist data result from artist_profiles:", {
           artistData,
@@ -110,34 +110,85 @@ export function useNewTracks() {
 
         if (!artistError && artistData && artistData.length > 0) {
           artistNames = artistData.reduce((acc, artist) => {
-            acc[artist.id] = artist.name;
+            acc[artist.user_id] = artist.name;
             return acc;
           }, {});
-        } else {
-          // If no results from artist_profiles, try the public.artist_profiles table
           console.log(
-            "No results from artist_profiles, trying public.artist_profiles",
+            "Successfully mapped artist names from artist_profiles:",
+            artistNames,
           );
-          const { data: publicArtistData, error: publicArtistError } =
-            await supabase
-              .from("public.artist_profiles")
-              .select("id, name")
-              .in("id", artistIds);
+        }
 
-          console.log("Artist data result from public.artist_profiles:", {
-            publicArtistData,
-            publicArtistError,
+        // If any artist IDs are still missing, try profiles table
+        const missingArtistIds = artistIds.filter((id) => !artistNames[id]);
+        if (missingArtistIds.length > 0) {
+          console.log(
+            "Some artist IDs still missing, trying profiles table:",
+            missingArtistIds,
+          );
+          const { data: profilesData, error: profilesError } = await supabase
+            .from("profiles")
+            .select("id, name")
+            .in("id", missingArtistIds);
+
+          console.log("Artist data result from profiles:", {
+            profilesData,
+            profilesError,
           });
 
-          if (
-            !publicArtistError &&
-            publicArtistData &&
-            publicArtistData.length > 0
-          ) {
-            artistNames = publicArtistData.reduce((acc, artist) => {
-              acc[artist.id] = artist.name;
-              return acc;
-            }, {});
+          if (!profilesError && profilesData && profilesData.length > 0) {
+            profilesData.forEach((profile) => {
+              artistNames[profile.id] = profile.name;
+              console.log(
+                `Found name for artist ${profile.id} in profiles: ${profile.name}`,
+              );
+            });
+          }
+        }
+
+        // Last resort: try directly querying for each remaining missing artist ID
+        const stillMissingArtistIds = artistIds.filter(
+          (id) => !artistNames[id],
+        );
+        if (stillMissingArtistIds.length > 0) {
+          console.log(
+            "Still missing artist IDs, trying individual queries:",
+            stillMissingArtistIds,
+          );
+          for (const artistId of stillMissingArtistIds) {
+            try {
+              // Try the RPC function first
+              const { data: rpcData } = await supabase
+                .rpc("get_artist_name_by_id", { artist_id: artistId })
+                .maybeSingle();
+
+              if (rpcData && rpcData.name) {
+                artistNames[artistId] = rpcData.name;
+                console.log(
+                  `Found name for artist ${artistId} via RPC: ${rpcData.name}`,
+                );
+                continue;
+              }
+
+              // If RPC fails, try direct query to artist_profiles
+              const { data: directArtistData } = await supabase
+                .from("artist_profiles")
+                .select("name")
+                .eq("user_id", artistId)
+                .single();
+
+              if (directArtistData) {
+                artistNames[artistId] = directArtistData.name;
+                console.log(
+                  `Found name for artist ${artistId} via direct query: ${directArtistData.name}`,
+                );
+              }
+            } catch (err) {
+              console.warn(
+                `Failed to get name for artist ID ${artistId}:`,
+                err,
+              );
+            }
           }
         }
       }
@@ -225,11 +276,11 @@ export function useNewTracks() {
       if (data.artist_id) {
         console.log(`Fetching artist name for ID: ${data.artist_id}`);
 
-        // First try artist_profiles table
+        // First try artist_profiles table directly - this is where artist names are stored
         const { data: artistData, error: artistError } = await supabase
           .from("artist_profiles")
           .select("name")
-          .eq("id", data.artist_id)
+          .eq("user_id", data.artist_id)
           .single();
 
         console.log("Artist data result from artist_profiles:", {
@@ -239,33 +290,43 @@ export function useNewTracks() {
 
         if (!artistError && artistData) {
           artistName = artistData.name;
-          console.log(`Found artist name: ${artistName}`);
+          console.log(`Found artist name in artist_profiles: ${artistName}`);
         } else {
-          // If not found, try public.artist_profiles table
-          console.log(
-            `Trying public.artist_profiles for ID: ${data.artist_id}`,
-          );
-          const { data: publicArtistData, error: publicArtistError } =
-            await supabase
-              .from("public.artist_profiles")
-              .select("name")
-              .eq("id", data.artist_id)
-              .single();
+          // If not found, try profiles table
+          console.log(`Trying profiles table for ID: ${data.artist_id}`);
+          const { data: profileData, error: profileError } = await supabase
+            .from("profiles")
+            .select("name")
+            .eq("id", data.artist_id)
+            .single();
 
-          console.log("Artist data result from public.artist_profiles:", {
-            publicArtistData,
-            publicArtistError,
+          console.log("Artist data result from profiles:", {
+            profileData,
+            profileError,
           });
 
-          if (!publicArtistError && publicArtistData) {
-            artistName = publicArtistData.name;
-            console.log(
-              `Found artist name in public.artist_profiles: ${artistName}`,
-            );
+          if (!profileError && profileData) {
+            artistName = profileData.name;
+            console.log(`Found artist name in profiles: ${artistName}`);
           } else {
-            console.warn(
-              `Could not find artist with ID: ${data.artist_id} in either table`,
-            );
+            // Last resort: try the RPC function
+            console.log(`Trying RPC function for artist ID: ${data.artist_id}`);
+            try {
+              const { data: rpcData } = await supabase
+                .rpc("get_artist_name_by_id", { artist_id: data.artist_id })
+                .maybeSingle();
+
+              if (rpcData && rpcData.name) {
+                artistName = rpcData.name;
+                console.log(`Found artist name via RPC: ${artistName}`);
+              } else {
+                console.warn(
+                  `Could not find artist with ID: ${data.artist_id} in any table`,
+                );
+              }
+            } catch (err) {
+              console.warn(`RPC error for artist ID ${data.artist_id}:`, err);
+            }
           }
         }
       }
