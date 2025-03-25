@@ -77,7 +77,12 @@ export default function ArtistProfile() {
       coverImage:
         dbArtist.background_image_url ||
         "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1200&q=80",
-      socialLinks: dbArtist.social_links || {},
+      socialLinks: {
+        website: dbArtist.website_url,
+        instagram: dbArtist.instagram_handle,
+        twitter: dbArtist.twitter_handle,
+        ...(dbArtist.social_links || {}),
+      },
       stats: {
         totalTracks: dbArtist.total_tracks || 0,
         totalSales: dbArtist.total_sales || 0,
